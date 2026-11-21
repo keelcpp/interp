@@ -9,7 +9,7 @@ keel::i32 g_failed = 0;
 
 void check(bool cond, const char* expr, keel::i32 line) {
     if (!cond) {
-        std::fprintf(stderr, "FAIL [line %d]: %s\n", static_cast<int>(line), expr);
+        std::fprintf(stderr, "FAIL [line %d]: %s\n", keel::as<int>(line), expr);
         ++g_failed;
     }
 }
@@ -17,7 +17,7 @@ void check(bool cond, const char* expr, keel::i32 line) {
 void check_near(keel::f64 got, keel::f64 expected, keel::f64 tol, const char* expr, keel::i32 line) {
     if (keel::is_nan(got) || keel::abs(got - expected) > tol) {
         std::fprintf(stderr, "FAIL [line %d]: %s (got %.15g, expected %.15g)\n",
-                     static_cast<int>(line), expr, got, expected);
+                     keel::as<int>(line), expr, got, expected);
         ++g_failed;
     }
 }
@@ -160,7 +160,7 @@ int main() {
     test_interp2_and_interp3();
 
     if (g_failed != 0) {
-        std::fprintf(stderr, "test_interp: %d failure(s)\n", static_cast<int>(g_failed));
+        std::fprintf(stderr, "test_interp: %d failure(s)\n", keel::as<int>(g_failed));
         return 1;
     }
     std::printf("test_interp: all tests passed\n");
