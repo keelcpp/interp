@@ -1,0 +1,12 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+find_dependency(keel)
+
+include("${CMAKE_CURRENT_LIST_DIR}/keel_interpTargets.cmake")
+
+if(TARGET keel::keel_interp AND NOT TARGET keel::interp)
+    add_library(keel::interp ALIAS keel::keel_interp)
+endif()
+
+check_required_components(keel_interp)
