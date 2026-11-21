@@ -4,7 +4,7 @@
 #include "keel/memory.h"
 #include "keel/ref.h"
 
-namespace keel {
+namespace keel::interp {
 
 // ============================================================================
 // 1. Grid Validation Helpers
@@ -102,4 +102,4 @@ enum class Interp2Method : u8 {
                                      ArrayRef<f64> zq, MutArrayRef<f64> out,
                                      Interp2Method method = Interp2Method::Linear) noexcept;
 
-} // namespace keel
+} // namespace keel::interp

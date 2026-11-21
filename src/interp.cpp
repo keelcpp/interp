@@ -4,7 +4,7 @@
 #include "keel/array.h"
 #include "keel/math.h"
 
-namespace keel {
+namespace keel::interp {
 
 namespace {
 
@@ -788,4 +788,4 @@ bool interp3_pointwise(ArrayRef<f64> v_colmajor, usize rows, usize cols, usize p
     return true;
 }
 
-} // namespace keel
+} // namespace keel::interp
