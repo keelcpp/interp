@@ -153,11 +153,66 @@ void test_interp2_and_interp3() {
     CHECK_NEAR(out3[0], 0.25 + 2.0 * 0.5 + 3.0 * 0.75, 1e-14);
 }
 
+void test_spline_pp_calculus() {
+    // aveknt
+    const keel::f64 t[6] = {0.0, 0.0, 0.0, 1.0, 1.0, 1.0};
+    keel::f64 avg[3] = {};
+    CHECK(keel::interp::aveknt({t, 6}, 3, {avg, 3}));
+    CHECK_NEAR(avg[0], 0.0, 1e-15);
+    CHECK_NEAR(avg[1], 0.5, 1e-15);
+    CHECK_NEAR(avg[2], 1.0, 1e-15);
+
+    // augknt
+    const keel::f64 br[3] = {0.0, 0.5, 1.0};
+    keel::f64 aug[7] = {};
+    CHECK(keel::interp::augknt({br, 3}, 3, {aug, 7}));
+    CHECK_NEAR(aug[0], 0.0, 1e-15);
+    CHECK_NEAR(aug[2], 0.0, 1e-15);
+    CHECK_NEAR(aug[3], 0.5, 1e-15);
+    CHECK_NEAR(aug[4], 1.0, 1e-15);
+    CHECK_NEAR(aug[6], 1.0, 1e-15);
+
+    // brk2knt & knt2brk round-trip
+    const keel::usize mults[3] = {3, 1, 3};
+    keel::Array<keel::f64> knots;
+    CHECK(keel::interp::brk2knt({br, 3}, {mults, 3}, knots));
+    CHECK(knots.size() == 7);
+    keel::Array<keel::f64> br_out;
+    keel::Array<keel::usize> m_out;
+    keel::interp::knt2brk(knots.as_ref(), br_out, m_out);
+    CHECK(br_out.size() == 3);
+    CHECK(m_out[0] == 3 && m_out[1] == 1 && m_out[2] == 3);
+
+    // pp_deriv and pp_integ on f(x) = x^2 over [0, 1, 2]
+    const keel::f64 x[3] = {0.0, 1.0, 2.0};
+    const keel::f64 y[3] = {0.0, 1.0, 4.0};
+    keel::f64 coefs[2 * 4] = {};
+    CHECK(keel::interp::spline_pp_coefs({x, 3}, {y, 3}, {coefs, 8}));
+
+    keel::Array<keel::f64> dcoefs;
+    keel::usize dord = 0;
+    CHECK(keel::interp::pp_deriv({coefs, 8}, 2, 4, 1, 1, dcoefs, dord));
+    CHECK(dord == 3);
+    const keel::f64 xq[2] = {0.5, 1.5};
+    keel::f64 dy[2] = {};
+    CHECK(keel::interp::ppval_nd({x, 3}, dcoefs.as_ref(), 2, dord, 1, {xq, 2}, {dy, 2}));
+    CHECK_NEAR(dy[0], 1.0, 1e-12); // d/dx(x^2) at 0.5 = 1.0
+    CHECK_NEAR(dy[1], 3.0, 1e-12); // d/dx(x^2) at 1.5 = 3.0
+
+    keel::f64 icoefs[2 * 5] = {};
+    CHECK(keel::interp::pp_integ({x, 3}, {coefs, 8}, 2, 4, 1, {icoefs, 10}));
+    keel::f64 iy[2] = {};
+    CHECK(keel::interp::ppval_nd({x, 3}, {icoefs, 10}, 2, 5, 1, {xq, 2}, {iy, 2}));
+    CHECK_NEAR(iy[0], 0.5 * 0.5 * 0.5 / 3.0, 1e-12);
+    CHECK_NEAR(iy[1], 1.5 * 1.5 * 1.5 / 3.0, 1e-12);
+}
+
 } // namespace
 
 int main() {
     test_interp1_and_pp();
     test_interp2_and_interp3();
+    test_spline_pp_calculus();
 
     if (g_failed != 0) {
         std::fprintf(stderr, "test_interp: %d failure(s)\n", keel::as<int>(g_failed));

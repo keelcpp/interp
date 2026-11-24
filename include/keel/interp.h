@@ -1,5 +1,6 @@
 #pragma once
 
+#include "keel/array.h"
 #include "keel/core.h"
 #include "keel/memory.h"
 #include "keel/ref.h"
@@ -101,5 +102,42 @@ enum class Interp2Method : u8 {
                                      ArrayRef<f64> z_grid, ArrayRef<f64> xq, ArrayRef<f64> yq,
                                      ArrayRef<f64> zq, MutArrayRef<f64> out,
                                      Interp2Method method = Interp2Method::Linear) noexcept;
+
+// ============================================================================
+// 5. B-Spline Knot Utilities & Piecewise Polynomial Calculus
+// ============================================================================
+
+/// Greville knot averages: `out[i] = mean(t[i+1 .. i+k-1])` for `i = 0 .. t.size() - k - 1`.
+/// Requires `2 <= k <= t.size()` and `out.size() >= t.size() - k`.
+[[nodiscard]] bool aveknt(ArrayRef<f64> t, i32 k, MutArrayRef<f64> out) noexcept;
+
+/// Augments knot sequence by replicating first and last knots to multiplicity `k`
+/// (`out.size()` must be at least `knots.size() + 2 * (k - 1)`).
+[[nodiscard]] bool augknt(ArrayRef<f64> knots, i32 k, MutArrayRef<f64> out) noexcept;
+
+/// Expands breakpoints and multiplicities into a repeated knot sequence.
+[[nodiscard]] bool brk2knt(ArrayRef<f64> breaks, ArrayRef<usize> mults, Array<f64>& out_knots,
+                           Allocator* alloc = nullptr);
+
+/// Compresses a knot sequence into run-length encoded breakpoints and multiplicities.
+void knt2brk(ArrayRef<f64> knots, Array<f64>& out_breaks, Array<usize>& out_mults,
+             Allocator* alloc = nullptr);
+
+/// Evaluates a `dim`-valued piecewise polynomial (`coefs_colmajor` of shape `(dim*pieces) x order`,
+/// highest power first) at query points `xq` into column-major `out_colmajor` (`dim x xq.size()`).
+[[nodiscard]] bool ppval_nd(ArrayRef<f64> breaks, ArrayRef<f64> coefs_colmajor, usize pieces,
+                            usize order, usize dim, ArrayRef<f64> xq,
+                            MutArrayRef<f64> out_colmajor) noexcept;
+
+/// Differentiates a `dim`-valued piecewise polynomial `deriv_order` times (>= 0).
+/// Writes column-major `(dim*pieces) x out_order` coefficients into `out_coefs_colmajor`.
+[[nodiscard]] bool pp_deriv(ArrayRef<f64> coefs_colmajor, usize pieces, usize order, usize dim,
+                            i32 deriv_order, Array<f64>& out_coefs_colmajor, usize& out_order,
+                            Allocator* alloc = nullptr);
+
+/// Integrates a `dim`-valued piecewise polynomial with continuity across `breaks` and zero constant
+/// at `breaks[0]`. Writes column-major `(dim*pieces) x (order+1)` into `out_coefs_colmajor`.
+[[nodiscard]] bool pp_integ(ArrayRef<f64> breaks, ArrayRef<f64> coefs_colmajor, usize pieces,
+                            usize order, usize dim, MutArrayRef<f64> out_coefs_colmajor) noexcept;
 
 } // namespace keel::interp

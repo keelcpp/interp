@@ -18,13 +18,14 @@ if(NOT TARGET keel::keel)
     FetchContent_Declare(
         keel
         GIT_REPOSITORY https://github.com/keelcpp/keel.git
-        GIT_TAG        869a5c07a5d77341e5f6acbac5f8e024b274ea08
+        GIT_TAG        5d80fa7d6984e7325fc8d5317c5db13830381429
     )
     FetchContent_MakeAvailable(keel)
 endif()
 
 add_library(keel_interp STATIC
     src/interp.cpp
+    src/spline_pp.cpp
 )
 add_library(keel::interp ALIAS keel_interp)
 
