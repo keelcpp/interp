@@ -1,7 +1,6 @@
 #include "keel/interp.h"
+#include "keel/format.h"
 #include "keel/math.h"
-
-#include <cstdio>
 
 namespace {
 
@@ -9,15 +8,14 @@ keel::i32 g_failed = 0;
 
 void check(bool cond, const char* expr, keel::i32 line) {
     if (!cond) {
-        std::fprintf(stderr, "FAIL [line %d]: %s\n", keel::as<int>(line), expr);
+        keel::eprintln("FAIL [line {}]: {}", line, expr);
         ++g_failed;
     }
 }
 
 void check_near(keel::f64 got, keel::f64 expected, keel::f64 tol, const char* expr, keel::i32 line) {
     if (keel::is_nan(got) || keel::abs(got - expected) > tol) {
-        std::fprintf(stderr, "FAIL [line %d]: %s (got %.15g, expected %.15g)\n",
-                     keel::as<int>(line), expr, got, expected);
+        keel::eprintln("FAIL [line {}]: {} (got {}, expected {})", line, expr, got, expected);
         ++g_failed;
     }
 }
@@ -215,9 +213,9 @@ int main() {
     test_spline_pp_calculus();
 
     if (g_failed != 0) {
-        std::fprintf(stderr, "test_interp: %d failure(s)\n", keel::as<int>(g_failed));
+        keel::eprintln("test_interp: {} failure(s)", g_failed);
         return 1;
     }
-    std::printf("test_interp: all tests passed\n");
+    keel::println("test_interp: all tests passed");
     return 0;
 }
