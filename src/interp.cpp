@@ -107,6 +107,12 @@ void compute_spline_sigma(const f64* y, usize n, const f64* h, f64* sigma, Alloc
     }
 }
 
+i32 sign_i32(f64 v) noexcept {
+    if (v > 0.0) return 1;
+    if (v < 0.0) return -1;
+    return 0;
+}
+
 void compute_pchip_slopes(const f64* h, const f64* delta, usize n, f64* d) noexcept {
     const usize nm1 = n - 1;
     if (n == 2) {
@@ -124,17 +130,17 @@ void compute_pchip_slopes(const f64* h, const f64* delta, usize n, f64* d) noexc
         }
     }
     d[0] = ((2.0 * h[0] + h[1]) * delta[0] - h[0] * delta[1]) / (h[0] + h[1]);
-    if (d[0] * delta[0] < 0.0) {
+    if (sign_i32(d[0]) != sign_i32(delta[0])) {
         d[0] = 0.0;
-    } else if (delta[0] * delta[1] < 0.0 && keel::abs(d[0]) > keel::abs(3.0 * delta[0])) {
+    } else if (sign_i32(delta[0]) != sign_i32(delta[1]) && keel::abs(d[0]) > keel::abs(3.0 * delta[0])) {
         d[0] = 3.0 * delta[0];
     }
 
     d[nm1] = ((2.0 * h[nm1 - 1] + h[nm1 - 2]) * delta[nm1 - 1] - h[nm1 - 1] * delta[nm1 - 2]) /
              (h[nm1 - 1] + h[nm1 - 2]);
-    if (d[nm1] * delta[nm1 - 1] < 0.0) {
+    if (sign_i32(d[nm1]) != sign_i32(delta[nm1 - 1])) {
         d[nm1] = 0.0;
-    } else if (delta[nm1 - 2] * delta[nm1 - 1] < 0.0 &&
+    } else if (sign_i32(delta[nm1 - 2]) != sign_i32(delta[nm1 - 1]) &&
                keel::abs(d[nm1]) > keel::abs(3.0 * delta[nm1 - 1])) {
         d[nm1] = 3.0 * delta[nm1 - 1];
     }
@@ -299,8 +305,10 @@ f64 sample_2d_basic(const f64* v, const f64* vpad, usize rows, usize cols, const
 // ============================================================================
 
 bool is_strictly_increasing(ArrayRef<f64> grid) noexcept {
+    if (grid.empty()) return true;
+    if (!is_finite(grid[0])) return false;
     for (usize i = 1; i < grid.size(); ++i) {
-        if (!(grid[i] > grid[i - 1])) return false;
+        if (!is_finite(grid[i]) || !(grid[i] > grid[i - 1])) return false;
     }
     return true;
 }
@@ -323,7 +331,7 @@ bool interp1(ArrayRef<f64> x, ArrayRef<f64> y, ArrayRef<f64> xq, MutArrayRef<f64
              Interp1Method method, ExtrapMode extrap, f64 extrap_val, Allocator* scratch_alloc) {
     const usize n = x.size();
     const usize nq = xq.size();
-    if (n < 2 || y.size() != n || out.size() < nq) return false;
+    if (n < 2 || y.size() != n || out.size() < nq || !is_strictly_increasing(x)) return false;
     if (nq == 0) return true;
 
     ArenaTemp scratch = get_scratch(scratch_alloc);
@@ -473,9 +481,9 @@ bool interp1(ArrayRef<f64> x, ArrayRef<f64> y, ArrayRef<f64> xq, MutArrayRef<f64
 bool spline_pp_coefs(ArrayRef<f64> x, ArrayRef<f64> y, MutArrayRef<f64> coefs_colmajor,
                      Allocator* scratch_alloc) {
     const usize n = x.size();
-    if (n < 2 || y.size() != n) return false;
+    if (n < 2 || y.size() != n || !is_strictly_increasing(x)) return false;
     const usize nm1 = n - 1;
-    if (coefs_colmajor.size() < nm1 * 4) return false;
+    if (coefs_colmajor.size() / 4 < nm1) return false;
 
     ArenaTemp scratch = get_scratch(scratch_alloc);
     Allocator* salloc = scratch.allocator();
@@ -498,9 +506,9 @@ bool spline_pp_coefs(ArrayRef<f64> x, ArrayRef<f64> y, MutArrayRef<f64> coefs_co
 bool pchip_pp_coefs(ArrayRef<f64> x, ArrayRef<f64> y, MutArrayRef<f64> coefs_colmajor,
                     Allocator* scratch_alloc) {
     const usize n = x.size();
-    if (n < 2 || y.size() != n) return false;
+    if (n < 2 || y.size() != n || !is_strictly_increasing(x)) return false;
     const usize nm1 = n - 1;
-    if (coefs_colmajor.size() < nm1 * 4) return false;
+    if (coefs_colmajor.size() / 4 < nm1) return false;
 
     ArenaTemp scratch = get_scratch(scratch_alloc);
     Allocator* salloc = scratch.allocator();
@@ -526,9 +534,9 @@ bool pchip_pp_coefs(ArrayRef<f64> x, ArrayRef<f64> y, MutArrayRef<f64> coefs_col
 bool makima_pp_coefs(ArrayRef<f64> x, ArrayRef<f64> y, MutArrayRef<f64> coefs_colmajor,
                      Allocator* scratch_alloc) {
     const usize n = x.size();
-    if (n < 2 || y.size() != n) return false;
+    if (n < 2 || y.size() != n || !is_strictly_increasing(x)) return false;
     const usize nm1 = n - 1;
-    if (coefs_colmajor.size() < nm1 * 4) return false;
+    if (coefs_colmajor.size() / 4 < nm1) return false;
 
     ArenaTemp scratch = get_scratch(scratch_alloc);
     Allocator* salloc = scratch.allocator();
@@ -554,7 +562,8 @@ bool makima_pp_coefs(ArrayRef<f64> x, ArrayRef<f64> y, MutArrayRef<f64> coefs_co
 bool ppval(ArrayRef<f64> breaks, ArrayRef<f64> coefs_colmajor, usize pieces, usize order,
            ArrayRef<f64> xq, MutArrayRef<f64> out) noexcept {
     if (pieces == 0 || order == 0 || breaks.size() < pieces + 1 ||
-        coefs_colmajor.size() < pieces * order || out.size() < xq.size()) {
+        coefs_colmajor.size() / order < pieces || out.size() < xq.size() ||
+        !is_strictly_increasing(ArrayRef<f64>(breaks.data(), pieces + 1))) {
         return false;
     }
     const usize nq = xq.size();
@@ -600,7 +609,8 @@ bool ppval(ArrayRef<f64> breaks, ArrayRef<f64> coefs_colmajor, usize pieces, usi
 bool interp2_pointwise(ArrayRef<f64> v_colmajor, usize rows, usize cols, ArrayRef<f64> x_grid,
                        ArrayRef<f64> y_grid, ArrayRef<f64> xq, ArrayRef<f64> yq,
                        MutArrayRef<f64> out, Interp2Method method, Allocator* scratch_alloc) {
-    if (x_grid.size() != cols || y_grid.size() != rows || v_colmajor.size() < rows * cols) {
+    if (rows < 2 || cols < 2 || x_grid.size() != cols || y_grid.size() != rows ||
+        v_colmajor.size() / cols < rows) {
         return false;
     }
     if (xq.size() != yq.size() || out.size() < xq.size()) return false;
@@ -682,12 +692,13 @@ bool interp2_pointwise(ArrayRef<f64> v_colmajor, usize rows, usize cols, ArrayRe
 bool interp2_grid(ArrayRef<f64> v_colmajor, usize rows, usize cols, ArrayRef<f64> x_grid,
                   ArrayRef<f64> y_grid, ArrayRef<f64> xq_cols, ArrayRef<f64> yq_rows,
                   MutArrayRef<f64> out_colmajor, Interp2Method method, Allocator* scratch_alloc) {
-    if (x_grid.size() != cols || y_grid.size() != rows || v_colmajor.size() < rows * cols) {
+    if (rows < 2 || cols < 2 || x_grid.size() != cols || y_grid.size() != rows ||
+        v_colmajor.size() / cols < rows) {
         return false;
     }
     const usize nx = xq_cols.size();
     const usize ny = yq_rows.size();
-    if (out_colmajor.size() < nx * ny) return false;
+    if (nx > 0 && ny > 0 && out_colmajor.size() / nx < ny) return false;
     if (!is_strictly_increasing(x_grid) || !is_strictly_increasing(y_grid)) return false;
     if (nx == 0 || ny == 0) return true;
 
@@ -743,8 +754,9 @@ bool interp3_pointwise(ArrayRef<f64> v_colmajor, usize rows, usize cols, usize p
                        ArrayRef<f64> xq, ArrayRef<f64> yq, ArrayRef<f64> zq, MutArrayRef<f64> out,
                        Interp2Method method) noexcept {
     if (method != Interp2Method::Linear && method != Interp2Method::Nearest) return false;
-    if (x_grid.size() != cols || y_grid.size() != rows || z_grid.size() != pages ||
-        v_colmajor.size() < rows * cols * pages) {
+    if (rows < 2 || cols < 2 || pages < 2 || x_grid.size() != cols || y_grid.size() != rows ||
+        z_grid.size() != pages || v_colmajor.size() / cols < rows ||
+        v_colmajor.size() / (rows * cols) < pages) {
         return false;
     }
     const usize nq = xq.size();

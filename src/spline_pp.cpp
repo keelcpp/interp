@@ -23,9 +23,11 @@ bool aveknt(ArrayRef<f64> t, i32 k, MutArrayRef<f64> out) noexcept {
 
 bool augknt(ArrayRef<f64> knots, i32 k, MutArrayRef<f64> out) noexcept {
     const usize n = knots.size();
-    if (k < 1 || n == 0) return false;
+    if (k < 1 || n < 2) return false;
     const usize ku = as<usize>(k);
-    const usize out_n = n + 2 * (ku - 1);
+    const usize extra = 2 * (ku - 1);
+    if (extra > Limits<usize>::kMax - n) return false;
+    const usize out_n = n + extra;
     if (out.size() < out_n) return false;
     const f64 first = knots[0];
     const f64 last = knots[n - 1];
@@ -41,7 +43,10 @@ bool brk2knt(ArrayRef<f64> breaks, ArrayRef<usize> mults, Array<f64>& out_knots,
     const usize n = breaks.size();
     if (mults.size() != n) return false;
     usize total = 0;
-    for (usize i = 0; i < n; ++i) total += mults[i];
+    for (usize i = 0; i < n; ++i) {
+        if (mults[i] > Limits<usize>::kMax - total) return false;
+        total += mults[i];
+    }
     out_knots = Array<f64>(alloc);
     out_knots.resize(total);
     usize idx = 0;
@@ -79,9 +84,11 @@ void knt2brk(ArrayRef<f64> knots, Array<f64>& out_breaks, Array<usize>& out_mult
 bool ppval_nd(ArrayRef<f64> breaks, ArrayRef<f64> coefs_colmajor, usize pieces, usize order,
               usize dim, ArrayRef<f64> xq, MutArrayRef<f64> out_colmajor) noexcept {
     if (pieces == 0 || order == 0 || dim == 0) return false;
+    if (dim > Limits<usize>::kMax / pieces) return false;
     const usize rows = dim * pieces;
-    if (breaks.size() < pieces + 1 || coefs_colmajor.size() < rows * order ||
-        out_colmajor.size() < dim * xq.size()) {
+    if (breaks.size() < pieces + 1 || coefs_colmajor.size() / order < rows ||
+        (xq.size() > 0 && out_colmajor.size() / dim < xq.size()) ||
+        !is_strictly_increasing(ArrayRef<f64>(breaks.data(), pieces + 1))) {
         return false;
     }
     const usize nq = xq.size();
@@ -127,8 +134,9 @@ bool ppval_nd(ArrayRef<f64> breaks, ArrayRef<f64> coefs_colmajor, usize pieces, 
 bool pp_deriv(ArrayRef<f64> coefs_colmajor, usize pieces, usize order, usize dim, i32 deriv_order,
               Array<f64>& out_coefs_colmajor, usize& out_order, Allocator* alloc) {
     if (pieces == 0 || order == 0 || dim == 0 || deriv_order < 0) return false;
+    if (dim > Limits<usize>::kMax / pieces) return false;
     const usize rows = dim * pieces;
-    if (coefs_colmajor.size() < rows * order) return false;
+    if (coefs_colmajor.size() / order < rows) return false;
 
     if (deriv_order == 0) {
         out_order = order;
@@ -162,10 +170,12 @@ bool pp_deriv(ArrayRef<f64> coefs_colmajor, usize pieces, usize order, usize dim
 bool pp_integ(ArrayRef<f64> breaks, ArrayRef<f64> coefs_colmajor, usize pieces, usize order,
               usize dim, MutArrayRef<f64> out_coefs_colmajor) noexcept {
     if (pieces == 0 || order == 0 || dim == 0) return false;
+    if (dim > Limits<usize>::kMax / pieces) return false;
     const usize rows = dim * pieces;
     const usize new_order = order + 1;
-    if (breaks.size() < pieces + 1 || coefs_colmajor.size() < rows * order ||
-        out_coefs_colmajor.size() < rows * new_order) {
+    if (breaks.size() < pieces + 1 || coefs_colmajor.size() / order < rows ||
+        out_coefs_colmajor.size() / new_order < rows ||
+        !is_strictly_increasing(ArrayRef<f64>(breaks.data(), pieces + 1))) {
         return false;
     }
     for (usize r = 0; r < dim; ++r) {
